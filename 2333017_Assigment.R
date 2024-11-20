@@ -157,32 +157,51 @@ ggplot(data = merged_data, aes(y = order_total)) +
 # [5]: 100%
 
 ## Lấy thông tin số các cột cần tính
-quantile_distance_nearest_warehouse = quantile(merged_data$order_price)
-quantile_delivery_charge = quantile(merged_data$order_price)
-quantile_order_price = quantile(merged_data$order_price)
-quantile_coupon_discount = quantile(merged_data$coupon_discount)
-quantile_order_total = quantile(merged_data$order_total)
-## Get q1 and q3
-q1_distance_nearst_warehouse = quantile_distance_nearest_warehouse[2]
-q3_distance_nearst_warehouse = quantile_distance_nearest_warehouse[4]
+# Define IQR for each variable
+quantiles_dist <- quantile(merged_data$distance_to_nearest_warehouse)
+quantiles_deliv <- quantile(merged_data$delivery_charge)
+quantiles_price <- quantile(merged_data$order_price)
+quantiles_coupon <- quantile(merged_data$coupon_discount)
+quantiles_total <- quantile(merged_data$order_total)
 
-q1_delivery_charge = quantile_delivery_charge[2]
-q3_delivery_charge = quantile_delivery_charge[4]
+# Extract Q1 and Q3
+q1_dist <- quantiles_dist[2]
+q3_dist <- quantiles_dist[4]
+q1_deliv <- quantiles_deliv[2]
+q3_deliv <- quantiles_deliv[4]
+q1_price <- quantiles_price[2]
+q3_price <- quantiles_price[4]
+q1_coupon <- quantiles_coupon[2]
+q3_coupon <- quantiles_coupon[4]
+q1_total <- quantiles_total[2]
+q3_total <- quantiles_total[4]
 
-q1_order_price = quantile_order_price[2]
-q3_order_price = quantile_order_price[4]
+# Calculate IQR for each variable
+IQR_dist <- q3_dist - q1_dist
+IQR_deliv <- q3_deliv - q1_deliv
+IQR_price <- q3_price - q1_price
+IQR_total <- q3_total - q1_total
+IQR_coupon <- q3_coupon - q1_coupon
 
-q1_coupon_discount = quantile_coupon_discount[2]
-q3_coupon_discount = quantile_coupon_discount[4]
+# Calculate lower and upper quantiles
+calc_lower <- function(Q1, IQR) { return(Q1 - 1.5 * IQR) }
+calc_upper <- function(Q3, IQR) { return(Q3 + 1.5 * IQR) }
 
-q1_order_total = quantile_order_total[2]
-q3_order_total = quantile_order_total[4]
+# Lower and upper quantiles for each variable
+lower_dist <- calc_lower(q1_dist, IQR_dist)
+upper_dist <- calc_upper(q3_dist, IQR_dist)
 
-## Hàm tính lower quantile
-calculate_lower_quantile <- function(Q1, IQR_Values){
-  return (Q1 - 1.5 * IQR)
-}
-# Hàm tính quantile
-calculate_upper_quantile <- function(Q1, IQR_Values){
-  return (Q3 + 1.5 * IQR)
-}
+lower_deliv <- calc_lower(q1_deliv, IQR_deliv)
+upper_deliv <- calc_upper(q3_deliv, IQR_deliv)
+
+lower_price <- calc_lower(q1_price, IQR_price)
+upper_price <- calc_upper(q3_price, IQR_price)
+
+lower_total <- calc_lower(q1_total, IQR_total)
+upper_total <- calc_upper(q3_total, IQR_total)
+
+lower_coupon <- calc_lower(q1_coupon, IQR_coupon)
+upper_coupon <- calc_upper(q3_coupon, IQR_coupon)
+
+cat(lower_dist)
+cat(upper_dist)
