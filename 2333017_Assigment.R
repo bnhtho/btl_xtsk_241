@@ -155,5 +155,34 @@ ggplot(data = merged_data, aes(y = order_total)) +
 # [3]: 50%
 # [4]: 75% [Q3]
 # [5]: 100%
-d1 = quantile(merged_data$order_price)
-print(d1)
+
+## Lấy thông tin số các cột cần tính
+quantile_distance_nearest_warehouse = quantile(merged_data$order_price)
+quantile_delivery_charge = quantile(merged_data$order_price)
+quantile_order_price = quantile(merged_data$order_price)
+quantile_coupon_discount = quantile(merged_data$coupon_discount)
+quantile_order_total = quantile(merged_data$order_total)
+## Get q1 and q3
+q1_distance_nearst_warehouse = quantile_distance_nearest_warehouse[2]
+q3_distance_nearst_warehouse = quantile_distance_nearest_warehouse[4]
+
+q1_delivery_charge = quantile_delivery_charge[2]
+q3_delivery_charge = quantile_delivery_charge[4]
+
+q1_order_price = quantile_order_price[2]
+q3_order_price = quantile_order_price[4]
+
+q1_coupon_discount = quantile_coupon_discount[2]
+q3_coupon_discount = quantile_coupon_discount[4]
+
+q1_order_total = quantile_order_total[2]
+q3_order_total = quantile_order_total[4]
+
+## Hàm tính lower quantile
+calculate_lower_quantile <- function(Q1, IQR_Values){
+  return (Q1 - 1.5 * IQR)
+}
+# Hàm tính quantile
+calculate_upper_quantile <- function(Q1, IQR_Values){
+  return (Q3 + 1.5 * IQR)
+}
