@@ -144,3 +144,16 @@ ggplot(data = merged_data, aes(y = order_total)) +
     title = "Outlier of Order Total",
     y = "Order Total"
   )
+
+# ----------
+# Step 6: Remove Outliers Using IQR Method for distance_to_nearest_warehouse in merged_data
+# ----------
+# Define IQR for distance_to_nearest_warehouse
+# Trong R , hàm quanlite trả về 5 giá trị 
+# [1]: 0%
+# [2]: 25% [Q1]
+# [3]: 50%
+# [4]: 75% [Q3]
+# [5]: 100%
+d1 = quantile(merged_data$order_price)
+print(d1)
