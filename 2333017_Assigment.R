@@ -2,8 +2,9 @@
 # Step 0: Install and Load Packages
 # ----------
 required_packages <- c("this.path", "dplyr", "ggplot2", "lubridate", "geosphere", 
-                       "readr", "corrplot", "faraway", "car")
+                       "readr", "corrplot", "faraway", "car", "ggthemes")
 
+# Install and load necessary packages
 for (p in required_packages) {
   if (!require(p, character.only = TRUE)) install.packages(p)
   library(p, character.only = TRUE)
@@ -12,15 +13,16 @@ for (p in required_packages) {
 # ----------
 # Step 1: Load and Merge Data
 # ----------
+# Set working directory
 setwd(this.path::here())
 
-# Current Directory
+# Print current working directory
 cat("Current Directory:", getwd(), "\n")
 
 # Load CSV files
-dirty_data <- read_csv("dirty_data.csv")
-missing_data <- read_csv("missing_data.csv")
-warehouses <- read_csv("warehouses.csv")
+dirty_data <- read_csv("data/dirty_data.csv")
+missing_data <- read_csv("data/missing_data.csv")
+warehouses <- read_csv("data/warehouses.csv")
 
 # Parse date columns in dirty_data and missing_data
 dirty_data$date <- parse_date_time(dirty_data$date, orders = c("mdy", "ymd", "dmy"))
@@ -71,54 +73,74 @@ merged_data <- merged_data %>%
     )
   )
 
-# Step 3: Calculate Distances to Nearest Warehouse
-
-# 1. Tạo ma trận tọa độ của khách hàng
-# - Cột 1: kinh độ (longitude)
-# - Cột 2: vĩ độ (latitude)
+# ----------
+# Step 3: Distance Calculations
+# ----------
+# Create customer coordinates matrix
 customer_coords <- cbind(merged_data$customer_long, merged_data$customer_lat)
-
-# 2. Tạo ma trận tọa độ của các kho hàng
-# - Cột 1: kinh độ (longitude)
-# - Cột 2: vĩ độ (latitude)
+# Create warehouse coordinates matrix
 warehouse_coords <- cbind(warehouses$lon, warehouses$lat)
 
-# 3. Tính toán ma trận khoảng cách
-# - Sử dụng hàm distm từ thư viện geosphere để tính khoảng cách
-# - Khoảng cách được tính dựa trên phương pháp Vincenty (độ chính xác cao cho trái đất hình ellipsoid)
-# - Ma trận kết quả (all_distances): 
-#   + Số hàng: số lượng khách hàng
-#   + Số cột: số lượng kho hàng
+# Calculate distance between customers and warehouses
 all_distances <- distm(customer_coords, warehouse_coords, fun = distVincentySphere)
-print("-----------Results of All Distance-------")
-print(all_distances)
-# 4. Tìm khoảng cách nhỏ nhất cho từng khách hàng
-# - Sử dụng apply với margin = 1 để áp dụng cho từng hàng (từng khách hàng)
-# - Với mỗi hàng, hàm min() tìm giá trị nhỏ nhất trong danh sách khoảng cách đến tất cả các kho
-min_distances <- apply(all_distances, 1, min)
-print("-----------Min Distance-------")
-print(min_distances)
-# 5. Tìm chỉ số (index) của kho hàng gần nhất
-# - which.min() tìm chỉ số của kho hàng có khoảng cách nhỏ nhất cho từng khách hàng
-nearest_warehouse_idx <- apply(all_distances, 1, which.min)
-# Idx = 1 -> Nickolson 
-# Idx = 2 -> Thompson
-# Idx = 3 -> Bakers
-# 6. Gán khoảng cách nhỏ nhất vào cột mới
-# - Chuyển đổi khoảng cách từ mét sang kilomet (bằng cách chia cho 1000)
-# - Làm tròn kết quả đến 4 chữ số sau dấu phẩy
-merged_data$distance_to_nearest_warehouse <- round(min_distances / 1000, digits = 4)
-print(round)
-# 7. Gán tên kho hàng gần nhất vào cột mới
-# - Sử dụng chỉ số (index) từ nearest_warehouse_idx để lấy tên kho hàng tương ứng
-merged_data$nearest_warehouse <- warehouses$names[nearest_warehouse_idx]
+
+# Find the minimum distance for each customer (in meters)
+min_distances <- apply(all_distances, 1, min)  
+# Convert minimum distances to kilometers and store in merged_data
+merged_data$distance_to_nearest_warehouse <- round(min_distances / 1000, 4)
 
 # ----------
 # Step 4: Check for Remaining Missing Values
 # ----------
+# Count remaining missing values in each column
 na_count <- colSums(is.na(merged_data))
 cat("Remaining Missing Values in Each Column:\n")
 print(na_count)
 
-# Save the cleaned data if needed
-# write_csv(merged_data, "cleaned_data.csv")
+# ----------
+# Step 5: Outlier Detection Using Boxplots
+# ----------
+# Boxplot for Distance to Nearest Warehouse
+ggplot(data = merged_data, aes(y = distance_to_nearest_warehouse)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Outlier of Distance to Nearest Warehouse",
+    y = "Distance to Nearest Warehouse"
+  )
+
+# Boxplot for Delivery Charges
+ggplot(data = merged_data, aes(y = delivery_charges)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Outlier of Delivery Charge",
+    y = "Delivery Charges"
+  )
+
+# Boxplot for Order Price
+ggplot(data = merged_data, aes(y = order_price)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Outlier of Order Price",
+    y = "Order Price"
+  )
+
+# Boxplot for Coupon Discount
+ggplot(data = merged_data, aes(y = coupon_discount)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Outlier of Coupon Discount",
+    y = "Coupon Discount"
+  )
+
+# Boxplot for Order Total
+ggplot(data = merged_data, aes(y = order_total)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Outlier of Order Total",
+    y = "Order Total"
+  )
