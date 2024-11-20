@@ -1,4 +1,8 @@
 # ----------
+# 1. PREPARE DATA
+# ----------
+
+# ----------
 # Step 0: Install and Load Packages
 # ----------
 required_packages <- c("this.path", "dplyr", "ggplot2", "lubridate", "geosphere", 
@@ -88,7 +92,10 @@ all_distances <- distm(customer_coords, warehouse_coords, fun = distVincentySphe
 min_distances <- apply(all_distances, 1, min)  
 # Convert minimum distances to kilometers and store in merged_data
 merged_data$distance_to_nearest_warehouse <- round(min_distances / 1000, 4)
-
+## -- Neaerst Warehouse
+## ----
+nearest_warehouse_idx <- apply(all_distances, 1, which.min)
+merged_data$nearest_warehouse <- warehouses$names[nearest_warehouse_idx]
 # ----------
 # Step 4: Check for Remaining Missing Values
 # ----------
@@ -96,7 +103,9 @@ merged_data$distance_to_nearest_warehouse <- round(min_distances / 1000, 4)
 na_count <- colSums(is.na(merged_data))
 cat("Remaining Missing Values in Each Column:\n")
 print(na_count)
-
+# ----------
+# 2. DATA VISUALIZATION
+# ----------
 # ----------
 # Step 5: Outlier Detection Using Boxplots
 # ----------
@@ -107,15 +116,6 @@ ggplot(data = merged_data, aes(y = distance_to_nearest_warehouse)) +
   labs(
     title = "Outlier of Distance to Nearest Warehouse",
     y = "Distance to Nearest Warehouse"
-  )
-
-# Boxplot for Delivery Charges
-ggplot(data = merged_data, aes(y = delivery_charges)) +
-  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
-  theme_minimal() +
-  labs(
-    title = "Outlier of Delivery Charge",
-    y = "Delivery Charges"
   )
 
 # Boxplot for Order Price
@@ -159,7 +159,6 @@ ggplot(data = merged_data, aes(y = order_total)) +
 ## Lấy thông tin số các cột cần tính
 # Define IQR for each variable
 quantiles_dist <- quantile(merged_data$distance_to_nearest_warehouse)
-quantiles_deliv <- quantile(merged_data$delivery_charge)
 quantiles_price <- quantile(merged_data$order_price)
 quantiles_coupon <- quantile(merged_data$coupon_discount)
 quantiles_total <- quantile(merged_data$order_total)
@@ -167,8 +166,6 @@ quantiles_total <- quantile(merged_data$order_total)
 # Extract Q1 and Q3
 q1_dist <- quantiles_dist[2]
 q3_dist <- quantiles_dist[4]
-q1_deliv <- quantiles_deliv[2]
-q3_deliv <- quantiles_deliv[4]
 q1_price <- quantiles_price[2]
 q3_price <- quantiles_price[4]
 q1_coupon <- quantiles_coupon[2]
@@ -178,7 +175,6 @@ q3_total <- quantiles_total[4]
 
 # Calculate IQR for each variable
 IQR_dist <- q3_dist - q1_dist
-IQR_deliv <- q3_deliv - q1_deliv
 IQR_price <- q3_price - q1_price
 IQR_total <- q3_total - q1_total
 IQR_coupon <- q3_coupon - q1_coupon
@@ -190,18 +186,49 @@ calc_upper <- function(Q3, IQR) { return(Q3 + 1.5 * IQR) }
 # Lower and upper quantiles for each variable
 lower_dist <- calc_lower(q1_dist, IQR_dist)
 upper_dist <- calc_upper(q3_dist, IQR_dist)
-
-lower_deliv <- calc_lower(q1_deliv, IQR_deliv)
-upper_deliv <- calc_upper(q3_deliv, IQR_deliv)
-
 lower_price <- calc_lower(q1_price, IQR_price)
 upper_price <- calc_upper(q3_price, IQR_price)
-
 lower_total <- calc_lower(q1_total, IQR_total)
 upper_total <- calc_upper(q3_total, IQR_total)
-
 lower_coupon <- calc_lower(q1_coupon, IQR_coupon)
 upper_coupon <- calc_upper(q3_coupon, IQR_coupon)
 
-cat(lower_dist)
-cat(upper_dist)
+## distance_to_nearest_warehouse using vector
+# Assuming `upper_dist` and `lower_dist` are defined
+## Order Price (upper/lower_price)
+for (i in 1:length(merged_data$order_price)) {
+  if (merged_data$order_price[i] > upper_price) {
+    merged_data$order_price[i] = upper_price
+  } else if(merged_data$order_price[i] < lower_price){
+    merged_data$order_price[i] = lower_price
+  }
+}
+## Counpon Discount
+for (i in 1:length(merged_data$coupon_discount)) {
+  if (merged_data$coupon_discount[i] > upper_coupon) {
+    merged_data$coupon_discount[i] = upper_coupon
+  } else if(merged_data$coupon_discount[i] < lower_coupon ){
+    merged_data$coupon_discount[i] = lower_coupon
+    
+  }
+}
+## Order Total
+for (i in 1:length(merged_data$order_total)) {
+  if (merged_data$order_total[i] > upper_total) {
+    merged_data$order_total[i] = upper_total
+  } else if(merged_data$order_total[i] < lower_total ){
+    merged_data$order_total[i] = lower_total
+    
+  }
+}
+## Distance to nearest warehouses
+for (i in 1:length(merged_data$distance_to_nearest_warehouse)) {
+  if (merged_data$distance_to_nearest_warehouse[i] > upper_dist) {
+    merged_data$distance_to_nearest_warehouse[i] = upper_dist
+  } else if(merged_data$distance_to_nearest_warehouse[i] < lower_dist ){
+    merged_data$distance_to_nearest_warehouse[i] = lower_dist
+  }
+}
+# ----------
+# 3. RENDER PLOT
+# ----------
