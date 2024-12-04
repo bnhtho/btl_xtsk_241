@@ -3,7 +3,7 @@
 # ----------
 # Cập nhật ngày 3/12/2024: Thêm bảng gt
 required_packages <- c("this.path", "dplyr", "ggplot2", "lubridate", "geosphere", 
-                       "readr", "corrplot", "faraway", "car", "ggthemes","gt","nortest","knitr")
+                       "readr", "corrplot", "faraway", "car", "ggthemes","gt","nortest","knitr","FSA")
 
 # Install and load necessary packages
 for (p in required_packages) {
@@ -268,3 +268,50 @@ print(kruskal_test)
 
 
 # Phương pháp 2
+
+# Tách 2 cột order_total và season ra data_frame mới
+total_season <- merged_data[, c("season", "order_total")] 
+# Lấy 200 mẫu (100 spring, 100 summer):
+sampled_Wilcoxon_rank_sum <- merged_data %>%
+  filter(season %in% c("spring", "summer")) %>%  # lọc ra 2 nhóm spring và summer trong cột season
+  arrange(factor(season, levels = c("spring", "summer"))) %>%   # Sắp xếp dữ liệu spring trước và summer sau
+  group_by(season) %>%  # nhóm ở cột season
+  slice_sample(n = 100) %>% # lấy 100 mẫu bất kỳ
+  ungroup() # hủy nhóm để tránh gây lỗi
+
+Wilcoxon_rank_sum_result <- wilcox.test(order_total ~ season, data = sampled_Wilcoxon_rank_sum) # Thực hiện kiểm định Wilcoxon_rank_sum
+print(Wilcoxon_rank_sum_result)  # In kết quả kiểm định Wilcoxon_rank_sum
+
+# Phương pháp 3: Wilcoxon Signed rank
+total_price <-  merged_data[, c("order_price",  "order_total")] # Tạo một dataframe mới cho riêng order_price và order_total
+Wilcoxon_signed_rank_sample <- total_price %>%
+  slice_sample(n = 200) # Lấy 200 mẫu bất kì từ bộ dữ liệu
+Wilcoxon_signed_rank_result <- wilcox.test(Wilcoxon_signed_rank_sample$order_price, Wilcoxon_signed_rank_sample$order_total, paired = TRUE)  # Kiểm định Wilcoxon_signed_rank
+print(Wilcoxon_signed_rank_result) # In kết quả 
+
+# 7: Thống kê và mở rộng
+# ---------------- Dunn Test -----------------
+dunn_result <- dunn.test(merged_data$order_price, merged_data$season, method = "bonferroni", list = TRUE)
+
+# Tạo bảng kết quả
+table <- cbind.data.frame(
+  Comparison = dunn_result$comparisons,  # Các cặp so sánh (cụ thể mùa)
+  Z_value = dunn_result$Z,               # Giá trị Z
+  P_adjusted = dunn_result$P.adjusted    # P-value đã điều chỉnh
+)
+
+# Sắp xếp bảng theo p-value đã điều chỉnh
+table <- table[order(table$P_adjusted), ]
+
+# Tạo bảng với gt và thêm tiêu đề
+table %>%
+  gt() %>%
+  tab_header(
+    title = md("#### Kết quả phân tích pos-hoc (Dunn's Test)"),
+    subtitle = "So sánh sự khác nhau giữa các nhóm mùa bằng Bonerroni"
+  )
+
+difference <- Wilcoxon_signed_rank_sample$order_price - Wilcoxon_signed_rank_sample$order_total # Tính phép toán trừ giữa order_price và order_total và lưu kết quả vào một đối tượng
+summary(difference) # Gọi hàm summary ra các giá trị quan trắc
+
+# --------------------------------------------
