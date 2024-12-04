@@ -1,44 +1,60 @@
 # ----------
-# 1. PREPARE DATA
+# 1. Chuẩn bị dữ liệu
 # ----------
-
-# ----------
-# Step 0: Install and Load Packages
-# ----------
+# Cập nhật ngày 3/12/2024: Thêm bảng gt
 required_packages <- c("this.path", "dplyr", "ggplot2", "lubridate", "geosphere", 
-                       "readr", "corrplot", "faraway", "car", "ggthemes")
+                       "readr", "corrplot", "faraway", "car", "ggthemes","gt","nortest","knitr")
 
 # Install and load necessary packages
 for (p in required_packages) {
   if (!require(p, character.only = TRUE)) install.packages(p)
   library(p, character.only = TRUE)
 }
-
 # ----------
-# Step 1: Load and Merge Data
+# Step 1: Cài đặt thư viện và gộp dữ liệu
 # ----------
-# Set working directory
+# Chỉnh đường dẫn của thư mục gốc
 setwd(this.path::here())
-
-# Print current working directory
-cat("Current Directory:", getwd(), "\n")
-
-# Load CSV files
+# Load dữ liệu mẫu 
 dirty_data <- read_csv("data/dirty_data.csv")
 missing_data <- read_csv("data/missing_data.csv")
 warehouses <- read_csv("data/warehouses.csv")
 
-# Parse date columns in dirty_data and missing_data
+# Thay đổi định dạng ngày tháng năm đồng bộ
 dirty_data$date <- parse_date_time(dirty_data$date, orders = c("mdy", "ymd", "dmy"))
 missing_data$date <- parse_date_time(missing_data$date, orders = c("mdy", "ymd", "dmy"))
 
-# Merge dirty_data and missing_data
+# Gộp dữ liệu dirty_data và missing_data
 merged_data <- rbind(dirty_data, missing_data)
+# ----------
+# 1. Làm sạch
+# ----------
 
-# ----------
-# Step 2: Clean Data
-# ----------
-# Convert 'season' to lowercase and fill missing values
+# 1.0 Hiện thị dữ liệu bị khuyết(NA)
+na_cout<- colSums(is.na(merged_data ))
+print(na_cout)
+
+# 1.1 Order_Total và Order_Price
+merged_data <- merged_data %>%
+  mutate(
+    # Điền giá trị NULL cho order_total
+    order_total = ifelse(
+      is.na(order_total), 
+      order_price * (100 - coupon_discount) / 100 + delivery_charges, 
+      order_total
+    ),
+    # Điền giá trị NULL cho order_price
+    order_price = ifelse(
+      is.na(order_price), 
+      (order_total - delivery_charges) * 100 / (100 - coupon_discount), 
+      order_price
+    )
+  )
+
+# 1.2 Mùa
+season_unique_before<-unique(merged_data$season)
+print(season_unique_before)
+
 merged_data$season <- tolower(merged_data$season)
 month_value <- month(merged_data$date)
 
@@ -51,72 +67,20 @@ merged_data <- merged_data %>%
     TRUE ~ "autumn"
   ))
 
-# Fill missing values in 'is_happy_customer' using median
+## After
+season_unique_after<-unique(merged_data$season)
+print(season_unique_after)
+
+# 1.3 Độ hài lòng của khách hàng
 median_happy_customer <- round(median(merged_data$is_happy_customer, na.rm = TRUE), digits = 0)
 merged_data$is_happy_customer[is.na(merged_data$is_happy_customer)] <- median_happy_customer
 
-# Fill missing values in 'customer_lat' and 'customer_long' using mean
-mean_customer_lat <- round(mean(merged_data$customer_lat, na.rm = TRUE), digits = 0)
-mean_customer_long <- round(mean(merged_data$customer_long, na.rm = TRUE), digits = 0)
-
-merged_data$customer_lat[is.na(merged_data$customer_lat)] <- mean_customer_lat
-merged_data$customer_long[is.na(merged_data$customer_long)] <- mean_customer_long
-
-# Clean order data: Fill NA values in 'order_total' and 'order_price'
-merged_data <- merged_data %>%
-  mutate(
-    order_total = ifelse(
-      is.na(order_total), 
-      order_price * (100 - coupon_discount) / 100 + delivery_charges, 
-      order_total
-    ),
-    order_price = ifelse(
-      is.na(order_price), 
-      (order_total - delivery_charges) * 100 / (100 - coupon_discount), 
-      order_price
-    )
-  )
-
 # ----------
-# Step 3: Distance Calculations
-# ----------
-# Create customer coordinates matrix
-customer_coords <- cbind(merged_data$customer_long, merged_data$customer_lat)
-# Create warehouse coordinates matrix
-warehouse_coords <- cbind(warehouses$lon, warehouses$lat)
-
-# Calculate distance between customers and warehouses
-all_distances <- distm(customer_coords, warehouse_coords, fun = distVincentySphere)
-
-# Find the minimum distance for each customer (in meters)
-min_distances <- apply(all_distances, 1, min)  
-# Convert minimum distances to kilometers and store in merged_data
-merged_data$distance_to_nearest_warehouse <- round(min_distances / 1000, 4)
-## -- Neaerst Warehouse
-## ----
-nearest_warehouse_idx <- apply(all_distances, 1, which.min)
-merged_data$nearest_warehouse <- warehouses$names[nearest_warehouse_idx]
-# ----------
-# Step 4: Check for Remaining Missing Values
-# ----------
-# Count remaining missing values in each column
-na_count <- colSums(is.na(merged_data))
-cat("Remaining Missing Values in Each Column:\n")
-print(na_count)
-# ----------
-# 2. DATA VISUALIZATION
+# 2. Mô Tả Thống Kê
 # ----------
 # ----------
-# Step 5: Outlier Detection Using Boxplots
+# 2.1: Thể hiện giá trị ngoại lai
 # ----------
-# Boxplot for Distance to Nearest Warehouse
-ggplot(data = merged_data, aes(y = distance_to_nearest_warehouse)) +
-  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
-  theme_minimal() +
-  labs(
-    title = "Outlier of Distance to Nearest Warehouse",
-    y = "Distance to Nearest Warehouse"
-  )
 
 # Boxplot for Order Price
 ggplot(data = merged_data, aes(y = order_price)) +
@@ -126,16 +90,6 @@ ggplot(data = merged_data, aes(y = order_price)) +
     title = "Outlier of Order Price",
     y = "Order Price"
   )
-
-# Boxplot for Coupon Discount
-ggplot(data = merged_data, aes(y = coupon_discount)) +
-  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
-  theme_minimal() +
-  labs(
-    title = "Outlier of Coupon Discount",
-    y = "Coupon Discount"
-  )
-
 # Boxplot for Order Total
 ggplot(data = merged_data, aes(y = order_total)) +
   geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
@@ -144,75 +98,40 @@ ggplot(data = merged_data, aes(y = order_total)) +
     title = "Outlier of Order Total",
     y = "Order Total"
   )
-
 # ----------
-# Step 6: Remove Outliers Using IQR Method for distance_to_nearest_warehouse in merged_data
+# 2.2: Loại bỏ Outlier (điểm ngoại lai)
 # ----------
-# Define IQR for distance_to_nearest_warehouse
 # Trong R , hàm quanlite trả về 5 giá trị 
 # [1]: 0%
 # [2]: 25% [Q1]
 # [3]: 50%
 # [4]: 75% [Q3]
 # [5]: 100%
-
-## Lấy thông tin số các cột cần tính
-# Define IQR for each variable
-quantiles_dist <- quantile(merged_data$distance_to_nearest_warehouse)
+# Hàm tứ phân vị trong R
 quantiles_price <- quantile(merged_data$order_price)
-quantiles_coupon <- quantile(merged_data$coupon_discount)
 quantiles_total <- quantile(merged_data$order_total)
 
-# Extract Q1 and Q3
-q1_dist <- quantiles_dist[2]
-q3_dist <- quantiles_dist[4]
+# Lấy giá trị Q1 và Q2
+
 q1_price <- quantiles_price[2]
 q3_price <- quantiles_price[4]
-q1_coupon <- quantiles_coupon[2]
-q3_coupon <- quantiles_coupon[4]
 q1_total <- quantiles_total[2]
 q3_total <- quantiles_total[4]
 
-# Calculate IQR for each variable
-IQR_dist <- q3_dist - q1_dist
+# Tính tứ phân vị
 IQR_price <- q3_price - q1_price
 IQR_total <- q3_total - q1_total
-IQR_coupon <- q3_coupon - q1_coupon
-
-# Calculate lower and upper quantiles
+# Hàm Tính giới hạn trên và dưới
 calc_lower <- function(Q1, IQR) { return(Q1 - 1.5 * IQR) }
 calc_upper <- function(Q3, IQR) { return(Q3 + 1.5 * IQR) }
 
-# Lower and upper quantiles for each variable
-lower_dist <- calc_lower(q1_dist, IQR_dist)
-upper_dist <- calc_upper(q3_dist, IQR_dist)
+# Gọi hàm để tính giá trị giới hạn trên và dưới cho hai cột
 lower_price <- calc_lower(q1_price, IQR_price)
 upper_price <- calc_upper(q3_price, IQR_price)
 lower_total <- calc_lower(q1_total, IQR_total)
 upper_total <- calc_upper(q3_total, IQR_total)
-lower_coupon <- calc_lower(q1_coupon, IQR_coupon)
-upper_coupon <- calc_upper(q3_coupon, IQR_coupon)
 
-## distance_to_nearest_warehouse using vector
-# Assuming `upper_dist` and `lower_dist` are defined
-## Order Price (upper/lower_price)
-for (i in 1:length(merged_data$order_price)) {
-  if (merged_data$order_price[i] > upper_price) {
-    merged_data$order_price[i] = upper_price
-  } else if(merged_data$order_price[i] < lower_price){
-    merged_data$order_price[i] = lower_price
-  }
-}
-## Counpon Discount
-for (i in 1:length(merged_data$coupon_discount)) {
-  if (merged_data$coupon_discount[i] > upper_coupon) {
-    merged_data$coupon_discount[i] = upper_coupon
-  } else if(merged_data$coupon_discount[i] < lower_coupon ){
-    merged_data$coupon_discount[i] = lower_coupon
-    
-  }
-}
-## Order Total
+## Thay thế các giá trị outlier bằng giá trị giới hạn trên và dưới.
 for (i in 1:length(merged_data$order_total)) {
   if (merged_data$order_total[i] > upper_total) {
     merged_data$order_total[i] = upper_total
@@ -221,14 +140,131 @@ for (i in 1:length(merged_data$order_total)) {
     
   }
 }
-## Distance to nearest warehouses
-for (i in 1:length(merged_data$distance_to_nearest_warehouse)) {
-  if (merged_data$distance_to_nearest_warehouse[i] > upper_dist) {
-    merged_data$distance_to_nearest_warehouse[i] = upper_dist
-  } else if(merged_data$distance_to_nearest_warehouse[i] < lower_dist ){
-    merged_data$distance_to_nearest_warehouse[i] = lower_dist
+
+for (i in 1:length(merged_data$order_price)) {
+  if (merged_data$order_price[i] > upper_price) {
+    merged_data$order_price[i] = upper_price
+  } else if(merged_data$order_price[i] < lower_price){
+    merged_data$order_price[i] = lower_price
   }
 }
+
 # ----------
-# 3. RENDER PLOT
+# 2.3: Vẽ lại đồ thị sau khi loại bỏ Outlier
 # ----------
+# Boxplot for Order Price
+ggplot(data = merged_data, aes(y = order_price)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Đồ thị thể hiện tứ phân vị của cột Order Price",
+    y = "Order Price"
+  )
+
+
+# Boxplot for Order Total
+ggplot(data = merged_data, aes(y = order_total)) +
+  geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
+  theme_minimal() +
+  labs(
+    title = "Đồ thị thể hiện tứ phân vị của cột Order Total",
+    y = "Order Total"
+  )
+# ----------
+# 2.4: Vẽ đồ thị
+# ----------
+
+# Tóm tắt chỉ số theo mùa
+season_summary <- merged_data %>%
+  group_by(season) %>%
+  summarise(
+    # Khảo sát xem trung bình 
+    avg_delivery_charge = mean(delivery_charges, na.rm = TRUE),
+    total_orders = n(),
+    avg_order_total = mean(order_total, na.rm = TRUE),
+    ## Tổng chi phí giao hàng qua các mùa
+    total_orders_with_discount = sum(coupon_discount > 0, na.rm = TRUE),  # Tổng số đơn hàng có giảm giá[3]
+    total_delivery_charges = sum(delivery_charges, na.rm = TRUE)
+    
+  )
+print(season_summary)
+
+# Đồ thị thể hiện tổng số lượng đơn hàng theo mùa
+ggplot(data = season_summary, aes(x = season, y = total_orders, fill = season)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = total_orders), vjust = 2,color = "white", ) +  # Thêm nhãn số liệu
+  theme_minimal() +
+  labs(
+    title = "Tổng số đơn hàng trong từng mùa",
+    x = " ",
+    y = "Số đơn hàng"
+  ) +
+  scale_fill_brewer(palette = "Paired")
+
+# Đồ thị tổng chi phí đơn hàng theo từng mùa
+ggplot(data = season_summary, aes(x = season, y = total_delivery_charges, fill = season)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = total_delivery_charges), vjust = 2,color = "white", ) +  # Hiển thị số liệu trên đầu thanh
+  theme_minimal() +
+  labs(
+    title = "Tổng phí giao hàng từng mùa",
+    x = " ",
+    y = "Phí giao hàng"
+  ) +
+  scale_fill_brewer(palette = "Set2")
+
+# Số đơn hàng đã áp dụng mã khuyến mãi theo từng mùa
+ggplot(data = season_summary, aes(x = season, y = total_orders_with_discount , fill = season)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = total_orders_with_discount), vjust = 2,color = "black", ) +  # Hiển thị số liệu trên đầu thanh
+  theme_minimal() +
+  labs(
+    title = "Số đơn hàng áp dụng mã khuyến mãi theo từng mùa",
+    x = " ",
+    y = ""
+  ) +
+  scale_fill_brewer(palette = "Set3")
+
+
+# 6.Thống kê suy diễn.
+
+# ---------------- Krusal-wallis Normal Test -----------------
+get_order_price <- merged_data$order_price
+# Kiểm tra dữ liệu xem có phải phân phối chuẩn không : Dùng shapiro
+shapiro_order_price <- shapiro.test(get_order_price)
+# Tạo danh sách các mùa
+seasons <- c("spring", "summer", "fall", "winter")
+# Tạo một danh sách trống để lưu kết quả
+order_price_by_season <- list()
+# Vòng lặp để trích xuất dữ liệu
+for (season in seasons) {
+  # Lọc dữ liệu theo mùa
+  season_data <- subset(merged_data, season == season)
+  # Lấy cột order_price và lưu vào danh sách
+  order_price_by_season[[season]] <- season_data$order_price
+}
+shapiro_summary <- data.frame(
+  Season = names(order_price_by_season), # Tên các mùa
+  P_value = sapply(order_price_by_season, function(order_price) {
+    shapiro.test(order_price)$p.value # Lấy p-value
+  })
+)
+
+# Thêm cột để diễn giải kết quả
+shapiro_summary$Normal_Distribution <- ifelse(shapiro_summary$P_value > 0.05, 
+                                              "True", 
+                                              "False")
+
+# Xem bảng kết quả từng với bảng (gt)
+  
+shapiro_summary %>%
+gt() %>%
+  tab_header(title=md("#### Kết quả phân tích phân phối chuẩn từng mùa"))
+## Kết quả: Không phải là phân phối chuẩn.
+kruskal_test <- kruskal.test(order_total ~ season, data = merged_data)
+# In kết quả kiểm định Kruskal-Wallis
+print(kruskal_test)
+### ----------------------------------------------------------------
+
+
+# Phương pháp 2
