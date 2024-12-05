@@ -1,9 +1,10 @@
 # ----------
 # 1. Chuẩn bị dữ liệu
 # ----------
-# Cập nhật ngày 3/12/2024: Thêm bảng gt
+# Cập nhật ngày 5/12/2024: Thêm bảng ggcorplot
 required_packages <- c("this.path", "dplyr", "ggplot2", "lubridate", "geosphere", 
-                       "readr", "corrplot", "faraway", "car", "ggthemes","gt","nortest","knitr","FSA")
+                       "readr", "corrplot", "faraway", "car", "ggthemes","gt","nortest","knitr","FSA",
+                       "ggcorrplot","dunn.test")
 
 # Install and load necessary packages
 for (p in required_packages) {
@@ -78,6 +79,9 @@ merged_data$is_happy_customer[is.na(merged_data$is_happy_customer)] <- median_ha
 # ----------
 # 2. Mô Tả Thống Kê
 # ----------
+# -------------------
+
+# -------------------
 # ----------
 # 2.1: Thể hiện giá trị ngoại lai
 # ----------
@@ -87,16 +91,16 @@ ggplot(data = merged_data, aes(y = order_price)) +
   geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
   theme_minimal() +
   labs(
-    title = "Outlier of Order Price",
-    y = "Order Price"
+    title = "Điểm ngoại lai của order_price",
+    y = ""
   )
 # Boxplot for Order Total
 ggplot(data = merged_data, aes(y = order_total)) +
   geom_boxplot(outlier.shape = 16, outlier.colour = "red", outlier.fill = "red") +
   theme_minimal() +
   labs(
-    title = "Outlier of Order Total",
-    y = "Order Total"
+    title = "Điểm ngoại lai của order_total",
+    y = ""
   )
 # ----------
 # 2.2: Loại bỏ Outlier (điểm ngoại lai)
@@ -158,7 +162,7 @@ ggplot(data = merged_data, aes(y = order_price)) +
   theme_minimal() +
   labs(
     title = "Đồ thị thể hiện tứ phân vị của cột Order Price",
-    y = "Order Price"
+
   )
 
 
@@ -168,7 +172,7 @@ ggplot(data = merged_data, aes(y = order_total)) +
   theme_minimal() +
   labs(
     title = "Đồ thị thể hiện tứ phân vị của cột Order Total",
-    y = "Order Total"
+
   )
 # ----------
 # 2.4: Vẽ đồ thị
@@ -179,14 +183,11 @@ season_summary <- merged_data %>%
   group_by(season) %>%
   summarise(
     # Khảo sát xem trung bình 
-    avg_delivery_charge = mean(delivery_charges, na.rm = TRUE),
     total_orders = n(),
     avg_order_total = mean(order_total, na.rm = TRUE),
     ## Tổng chi phí giao hàng qua các mùa
-    total_orders_with_discount = sum(coupon_discount > 0, na.rm = TRUE),  # Tổng số đơn hàng có giảm giá[3]
     total_delivery_charges = sum(delivery_charges, na.rm = TRUE)
-    
-  )
+)
 print(season_summary)
 
 # Đồ thị thể hiện tổng số lượng đơn hàng theo mùa
@@ -213,20 +214,36 @@ ggplot(data = season_summary, aes(x = season, y = total_delivery_charges, fill =
   ) +
   scale_fill_brewer(palette = "Set2")
 
-# Số đơn hàng đã áp dụng mã khuyến mãi theo từng mùa
-ggplot(data = season_summary, aes(x = season, y = total_orders_with_discount , fill = season)) +
-  geom_bar(stat = "identity") +
-  geom_text(aes(label = total_orders_with_discount), vjust = 2,color = "black", ) +  # Hiển thị số liệu trên đầu thanh
-  theme_minimal() +
-  labs(
-    title = "Số đơn hàng áp dụng mã khuyến mãi theo từng mùa",
-    x = " ",
-    y = ""
-  ) +
-  scale_fill_brewer(palette = "Set3")
-
-
 # 6.Thống kê suy diễn.
+# 6.0 Plot tương quan
+# 2.0: Tương quan dữ liệu
+## dùng data frame mới
+overview_data <- merged_data[c("order_price", "delivery_charges",
+                               "coupon_discount","order_total", "is_expedited_delivery", 
+                               "is_happy_customer", "shopping_cart")]
+
+# Convert từ bool sang number
+numeric_data <- overview_data[sapply(overview_data, is.numeric)]
+cor_matrix <- cor(numeric_data)
+print(cor_matrix)
+#cor_matrix <- cor(overview_data)
+
+
+# Tạo biểu đồ với các tùy chỉnh
+corrplot(
+  cor_matrix, 
+  method = "color",             # Phương pháp hiển thị: dùng màu
+  col= colorRampPalette(c("white","#202020", "#202040"))(10) ,
+  type = "full",                # Hiển thị toàn bộ ma trận
+  order = "hclust",             # Sắp xếp theo hierarchical clustering
+  tl.col = "black",             # Màu chữ của các nhãn biến là đen
+  tl.srt = 45,                  # Góc quay của các nhãn biến
+  addCoef.col = "white",        # Màu chữ của hệ số tương quan là trắng
+  number.cex = 0.8,             # Kích thước chữ của số hệ số tương quan
+  tl.cex = 0.8,                 # Kích thước chữ nhãn biến
+  diag = TRUE,                  # Hiển thị các hệ số trên đường chéo
+  cl.pos = "r"                  # Hiển thị thanh chú thích màu ở bên phải
+)
 
 # ---------------- Krusal-wallis Normal Test -----------------
 get_order_price <- merged_data$order_price
