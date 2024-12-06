@@ -228,7 +228,9 @@ shapiro_summary$Normal_Distribution <- ifelse(shapiro_summary$P_value > 0.05,
                                               "True",  # Phân phối chuẩn
                                               "False") # Không phải phân phối chuẩn
 # In bảng tóm tắt kết quả kiểm tra Shapiro-Wilk theo mùa
-print(shapiro_summary)
+shapiro_summary %>%
+  gt() %>%
+  tab_header(title=md("#### Kết quả phân tích phân phối chuẩn từng mùa"))
 # Phần 5.2 Các phương pháp thống kê
 # ------------------------------------------------------
 # Phương pháp Kruskal-Wallis
@@ -251,3 +253,22 @@ Wilcoxon_signed_rank_sample <- total_price %>%
   slice_sample(n = 200) # Lấy 200 mẫu bất kì từ bộ dữ liệu
 Wilcoxon_signed_rank_result <- wilcox.test(Wilcoxon_signed_rank_sample$order_price, Wilcoxon_signed_rank_sample$order_total, paired = TRUE)  # Kiểm định Wilcoxon_signed_rank
 print(Wilcoxon_signed_rank_result) # In kết quả 
+# Phần 6: Mở rộng và thống kê
+# ------------------------------------------------------
+## Posthoc: Dunn Test
+dunn_result <- dunn.test(merged_data$order_price, merged_data$season, method = "bonferroni", list = TRUE)
+# Tạo bảng kết quả
+table <- cbind.data.frame(
+  Comparison = dunn_result$comparisons,  # Các cặp so sánh (cụ thể mùa)
+  Z_value = dunn_result$Z,               # Giá trị Z
+  P_adjusted = dunn_result$P.adjusted    # P-value đã điều chỉnh
+)
+# Sắp xếp bảng theo p-value đã điều chỉnh
+table <- table[order(table$P_adjusted), ]
+# Tạo bảng với gt và thêm tiêu đề
+table %>%
+  gt() %>%
+  tab_header(
+    title = md("#### Kết quả phân tích pos-hoc (Dunn's Test)"),
+    subtitle = "So sánh sự khác nhau giữa các nhóm mùa bằng Bonerroni"
+  )
