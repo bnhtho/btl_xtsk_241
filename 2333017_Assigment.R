@@ -173,7 +173,7 @@ ggplot(data = season_summary, aes(x = season, y = total_orders, fill = season)) 
   labs(
     title = "Tổng số đơn hàng trong từng mùa",
     x = " ",
-    y = "Số đơn hàng"
+    y = " " # Để trống
   ) +
   scale_fill_brewer(palette = "Paired")
 # ------------------------------------------------------
@@ -185,6 +185,69 @@ ggplot(data = season_summary, aes(x = season, y = total_delivery_charges, fill =
   labs(
     title = "Tổng phí giao hàng từng mùa",
     x = " ",
-    y = "Phí giao hàng"
+    y = " " #Để trống
   ) +
   scale_fill_brewer(palette = "Set2")
+
+# ------------------------------------------------------
+# 5.1 Kiểm tra phân phối chuẩn bằng phương pháp Shapiro-Wilk
+
+# Trích xuất các cột order_price và order_total từ merged_data
+get_order_price <- merged_data$order_price
+get_order_total <- merged_data$order_total
+
+# Kiểm tra phân phối chuẩn với Shapiro-Wilk cho cột order_total
+shapiro_order_total <- shapiro.test(get_order_total)
+# Kiểm tra phân phối chuẩn với Shapiro-Wilk cho cột order_price
+shapiro_order_price <- shapiro.test(get_order_price)
+
+# In kết quả kiểm tra Shapiro-Wilk cho toàn bộ dữ liệu
+print(shapiro_order_price)  # Kết quả kiểm tra cho order_price
+print(shapiro_order_total)  # Kết quả kiểm tra cho order_total
+# Kiểm tra phân phối chuẩn theo từng mùa
+seasons <- c("spring", "summer", "fall", "winter")
+# Tạo danh sách để lưu giá trị order_price theo từng mùa
+order_price_by_season <- list()
+# Lặp qua từng mùa, trích xuất dữ liệu và lưu vào danh sách
+for (season in seasons) {
+  # Trích xuất dữ liệu của từng mùa bằng subset()
+  season_data <- subset(merged_data, season == season)  
+  # Lưu giá trị order_price của từng mùa vào danh sách
+  order_price_by_season[[season]] <- season_data$order_price
+}
+# Tạo bảng tóm tắt kết quả kiểm tra Shapiro-Wilk cho từng mùa
+shapiro_summary <- data.frame(
+  Season = names(order_price_by_season),  # Tên các mùa
+  P_value = sapply(order_price_by_season, function(order_price) {
+    # Tính p-value từ kiểm tra Shapiro-Wilk cho từng mùa
+    shapiro.test(order_price)$p.value
+  })
+)
+# Đánh giá phân phối chuẩn: nếu p-value > 0.05 thì phân phối chuẩn
+shapiro_summary$Normal_Distribution <- ifelse(shapiro_summary$P_value > 0.05, 
+                                              "True",  # Phân phối chuẩn
+                                              "False") # Không phải phân phối chuẩn
+# In bảng tóm tắt kết quả kiểm tra Shapiro-Wilk theo mùa
+print(shapiro_summary)
+# Phần 5.2 Các phương pháp thống kê
+# ------------------------------------------------------
+# Phương pháp Kruskal-Wallis
+kruskal_test <- kruskal.test(order_total ~ season, data = merged_data)
+print(kruskal_test)
+
+# Phương pháp 2: Wilcoxin  Rank Sum
+total_season <- merged_data[, c("season", "order_total")] 
+# Lấy 200 mẫu (100 spring, 100 summer):
+sampled_Wilcoxon_rank_sum <- merged_data %>%
+  filter(season %in% c("spring", "summer")) %>%  # lọc ra 2 nhóm spring và summer trong cột season
+  arrange(factor(season, levels = c("spring", "summer"))) %>%   # Sắp xếp dữ liệu spring trước và summer sau
+  group_by(season) %>%  # nhóm ở cột season
+  slice_sample(n = 100) %>% # lấy 100 mẫu bất kỳ
+  ungroup() # hủy nhóm để tránh gây lỗi
+
+# Phương pháp 3 Wilcoxon signed rank
+total_price <-  merged_data[, c("order_price",  "order_total")] # Tạo một dataframe mới cho riêng order_price và order_total
+Wilcoxon_signed_rank_sample <- total_price %>%
+  slice_sample(n = 200) # Lấy 200 mẫu bất kì từ bộ dữ liệu
+Wilcoxon_signed_rank_result <- wilcox.test(Wilcoxon_signed_rank_sample$order_price, Wilcoxon_signed_rank_sample$order_total, paired = TRUE)  # Kiểm định Wilcoxon_signed_rank
+print(Wilcoxon_signed_rank_result) # In kết quả 
