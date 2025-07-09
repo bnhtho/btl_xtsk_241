@@ -1,0 +1,1 @@
+install.packages('faraway', repos='http://cran.us.r-project.org')
